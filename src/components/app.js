@@ -53,6 +53,7 @@ export default function App() {
     function updateSigninStatus(isSignedIn) {
         if (isSignedIn) {
             const profile = root.gapi.auth2.getAuthInstance().currentUser.get();
+            console.log("updateSignin", profile)
             setUserData(profile);
         } else {
             dispatch({
@@ -66,6 +67,7 @@ export default function App() {
     }
 
     function setUserData(data) {
+        console.log('setuserData', data)
         const {
             Qt: {
                 Ad: username,
@@ -125,6 +127,7 @@ export default function App() {
             const isSignedIn = root.gapi.auth2.getAuthInstance().isSignedIn.get();
             if (isSignedIn) {
                 const profile = root.gapi.auth2.getAuthInstance().currentUser.get();
+                console.log(profile)
                 setUserData(profile);
             } else {
                 dispatch({ type: USER_DETAILS_RESET });
@@ -205,7 +208,6 @@ export default function App() {
                 detailsRef.current.open = false;
             }
         } else {
-            console.log(detailsRef.current)
             if (detailsRef.current) {
                 detailsRef.current.open = true;
             }
@@ -288,7 +290,7 @@ export default function App() {
                     We need access to your Google account as this app creates a google sheet in your Google Drive.
                 </p>
                 <i class="p-1 text-center text-sm">(You'll have to authorize this app to store files your GDrive)</i>
-                <button class={`${BTN.PILL} my-3 w-3/5`} onClick={handleAuthClick}>
+                <button class={`${BTN.PILL} my-3 h-10`} onClick={handleAuthClick}>
                     LOG IN WITH GOOGLE
                 </button>
                 {!!state.userData.error && <Info message={state.userData.error} type="error" autoHide />}
@@ -347,7 +349,7 @@ export default function App() {
     }
 
     return (
-        <section class="my-4 shadow-lg px-6 py-4 rounded-lg w-4/5 max-w-lg bg-gray-100 flex flex-col flex-shrink overflow-y-auto">
+        <section class="px-2 py-4 rounded-lg lg:w-4/5 max-w-lg bg-gray-100 flex flex-col overflow-y-auto w-full">
             <h1 class="text-4xl text-center">Timesheet Helper</h1>
             {
                 state.userData.loading

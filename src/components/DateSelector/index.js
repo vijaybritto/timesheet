@@ -127,33 +127,38 @@ export default function DateSelector(props) {
     function getCalendar() {
         const { calendarRows } = state;
         return (
-            <Fragment>
-                <div class="bg-gray-200 flex p-2 rounded">
-                    <span class="font-bold m-1 w-10 h-7 text-center">S</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">M</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">T</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">W</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">T</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">F</span>
-                    <span class="font-bold m-1 w-10 h-7 text-center">S</span>
-                </div>
-                <div class="p-2">
+            <table>
+                <thead>
+                    <tr class="bg-gray-200 h-10">
+                        <th class="font-bold m-1 w-10 h-7 text-center">S</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">M</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">T</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">W</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">T</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">F</th>
+                        <th class="font-bold m-1 w-10 h-7 text-center">S</th>
+                    </tr>
+                </thead>
+
+                <tbody class="">
                     {
                         calendarRows.map(function (dateRow, parentIndex) {
                             return (
-                                <div class="flex" key={parentIndex}>
+                                <tr class="" key={parentIndex}>
                                     {
                                         dateRow.map(function ({ date, isHoliday, leaveType }, childIndex) {
                                             const isWeekend = childIndex === 0 || childIndex === 6;
                                             if (!date) {
                                                 const bg = isWeekend ? 'bg-gray-300' : '';
-                                                return (<div class={`p-2 ${bg} m-1 w-10 text-center rounded`}>{""}</div>)
+                                                return (<td class={`p-2 mt-1 w-10 text-center rounded`}>
+                                                    <div class={`w-8 ${bg}`}>{""}</div>
+                                                </td>)
                                             }
                                             let bg = '';
                                             let cursor = isWeekend ? 'cursor-default' : 'cursor-pointer';
                                             if (markType === "leaves") {
                                                 if (!isHoliday) {
-                                                    bg = isWeekend ? 'bg-gray-300' : 'hover:bg-gray-400';
+                                                    bg = isWeekend ? 'bg-gray-300' : 'hover:bg-gray-200';
                                                     if (leaveType === "half") {
                                                         bg = "bg-yellow-400 hover:bg-yellow-500"
                                                     }
@@ -170,21 +175,21 @@ export default function DateSelector(props) {
                                                 if (leaveType) cursor = "cursor-not-allowed";
                                             }
 
-                                            return (<div
+                                            return (<td
                                                 key={childIndex}
-                                                class={`p-2 ${bg} m-1 w-10 text-center rounded ${cursor}`}
+                                                class={`p-1 w-10 text-center ${cursor}`}
                                                 onClick={onDayClick({ date, isHoliday, leaveType, parentIndex, childIndex })}
                                             >
-                                                {date.format('D')}
-                                            </div>)
+                                                <div class={`${bg} rounded p-2`}>{date.format('D')}</div>
+                                            </td>)
                                         })
                                     }
-                                </div>
+                                </tr>
                             );
                         })
                     }
-                </div>
-            </Fragment>
+                </tbody>
+            </table>
         )
     }
 
@@ -210,7 +215,7 @@ export default function DateSelector(props) {
                 <div class="p-1">
                     {getLegendSection()}
                 </div>
-                <div class="p-1 mt-1 border-b">
+                <div class="p-1 mt-1 border-b flex justify-center">
                     {getCalendar()}
                 </div>
                 <div class="p-1 mt-1">
