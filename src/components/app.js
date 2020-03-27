@@ -53,7 +53,6 @@ export default function App() {
     function updateSigninStatus(isSignedIn) {
         if (isSignedIn) {
             const profile = root.gapi.auth2.getAuthInstance().currentUser.get();
-            console.log("updateSignin", profile)
             setUserData(profile);
         } else {
             dispatch({
@@ -67,14 +66,10 @@ export default function App() {
     }
 
     function setUserData(data) {
-        console.log('setuserData', data)
-        const {
-            Qt: {
-                Ad: username,
-                UK: avatarURL,
-                zu: email
-            }
-        } = data;
+        const profile = data.getBasicProfile();
+        const username = profile.getName();
+        const avatarURL = profile.getImageUrl();
+        const email = profile.getEmail();
         dispatch({
             type: USER_DETAILS_SUCCESS,
             data: {
@@ -127,7 +122,6 @@ export default function App() {
             const isSignedIn = root.gapi.auth2.getAuthInstance().isSignedIn.get();
             if (isSignedIn) {
                 const profile = root.gapi.auth2.getAuthInstance().currentUser.get();
-                console.log(profile)
                 setUserData(profile);
             } else {
                 dispatch({ type: USER_DETAILS_RESET });
