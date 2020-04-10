@@ -40,6 +40,8 @@ export const initialState = {
     sheet: {
         id: "",
         name: "",
+        sheetId: "",
+        title: "",
         error: false,
         loading: false
     },
@@ -113,6 +115,8 @@ export function reducer(state, action) {
                 sheet: {
                     id: action.id,
                     name: action.name,
+                    sheetId: action.sheetId,
+                    title: action.title,
                     loading: false,
                     error: false
                 }

@@ -32,7 +32,32 @@ export const getFileFromDrive = async (fileName) => {
     } catch (e) {
         return { error: e };
     }
+}
 
+export async function getSpreadsheetInfo(spreadsheetId) {
+    try {
+        const {
+            result: {
+                sheets: [{
+                    properties: {
+                        sheetId,
+                        title
+                    }
+                }]
+            }
+        } = await root.gapi.client.sheets.spreadsheets.get({
+            spreadsheetId,
+            ranges: [],
+            includeGridData: false
+        });
+        return {
+            sheetId, title
+        }
+    } catch (e) {
+        return {
+            error: e
+        }
+    }
 }
 
 export const createSpreadsheet = async fileName => {
@@ -42,7 +67,13 @@ export const createSpreadsheet = async fileName => {
             spreadsheetUrl,
             properties: {
                 title: name
-            }
+            },
+            sheets: [{
+                properties: {
+                    sheetId,
+                    title
+                }
+            }]
         },
         status
     } = await root.gapi.client.sheets.spreadsheets.create({
@@ -54,7 +85,9 @@ export const createSpreadsheet = async fileName => {
         spreadsheetId,
         spreadsheetUrl,
         status,
-        name
+        name,
+        sheetId,
+        title
     }
 }
 
@@ -130,4 +163,315 @@ export function getCalendarRange(days = []) {
         }
     });
     return result;
+}
+
+export function getSummary(calendarRows) {
+    let working = 0;
+    let leaves = 0;
+    calendarRows.forEach(row => {
+        row.forEach((obj, i) => {
+            if (!obj) return;
+            if (!obj.isHoliday && !(i === 0 || i === 6)) {
+                working += 1;
+            }
+            if (obj.leaveType) {
+                leaves += obj.leaveType === "half" ? 0.5 : 1;
+            }
+        })
+    });
+    return {
+        working,
+        leaves,
+        billable: working - leaves
+    }
+}
+
+function getColWidthReq(sheetId) {
+    const getSize = i => {
+        if (i === 0 || i === 1) return 80;
+        if (i === 2) return 140;
+        if (i === 3) return 350;
+    }
+    return Array(4).fill({
+        "updateDimensionProperties": {
+            "range": {
+                "sheetId": sheetId,
+                "dimension": "COLUMNS",
+                "startIndex": 0,
+                "endIndex": 0
+            },
+            "properties": {
+                "pixelSize": 0
+            },
+            "fields": "pixelSize"
+        }
+    }).map((v, i) => {
+        const prop = v.updateDimensionProperties;
+        prop.range.startIndex = i;
+        prop.range.endIndex = i + 1;
+        prop.properties.pixelSize = getSize(i);
+        return v;
+    })
+}
+
+function getMergeCellsReq(sheetId) {
+    // [startRow, endRow, startColumn, endColumn]
+    const ranges = [
+        [0, 1, 0, 4], // title
+        [1, 2, 0, 3],
+        [2, 3, 0, 3],
+        [3, 4, 0, 3],
+        [4, 5, 0, 3],
+        [5, 6, 0, 3]
+    ];
+    return ranges.map(o => ({
+        "mergeCells": {
+            "range": {
+                "sheetId": sheetId,
+                "startRowIndex": o[0],
+                "endRowIndex": o[1],
+                "startColumnIndex": o[2],
+                "endColumnIndex": o[3]
+            },
+            "mergeType": "MERGE_ALL"
+        }
+    }))
+}
+
+function getReqObj({
+    text = "",
+    centered = false,
+    bold = false,
+    bg = null,
+    underlined = false
+}) {
+    let body = {
+        userEnteredValue: {
+            stringValue: text,
+        },
+        userEnteredFormat: {
+            borders: {
+                "top": {
+                    "style": "SOLID",
+                    "width": 1,
+                },
+                "bottom": {
+                    "style": "SOLID",
+                    "width": 1,
+                },
+                "left": {
+                    "style": "SOLID",
+                    "width": 1,
+                },
+                "right": {
+                    "style": "SOLID",
+                    "width": 1,
+                }
+            },
+            textFormat: {}
+        }
+    };
+    const format = body.userEnteredFormat;
+
+    if (bg === 'gray') {
+        format.backgroundColor = {
+            red: 20,
+            blue: 20,
+            green: 20,
+            alpha: 1
+        }
+    }
+    if (bg === 'green') {
+        format.backgroundColor = {
+            red: 0,
+            blue: 0,
+            green: 30,
+            alpha: 0.5
+        }
+    }
+    if (centered) format.horizontalAlignment = "CENTER";
+    if (bold) format.textFormat.bold = true;
+    if (underlined) format.textFormat.underline = true;
+
+    return body;
+
+}
+
+export function constructRequests(state, {
+    working,
+    leaves,
+    billable,
+    sheetId,
+    monthYear,
+    timesheetValues
+}) {
+    const { calendarRows } = state;
+
+    const colWidthReq = getColWidthReq(sheetId);
+    const mergeCellsReqs = getMergeCellsReq(sheetId);
+    const daysLength = calendarRows.reduce((acc, range) =>
+        acc + range.filter(Boolean).length, 0
+    );
+    const boldAndGreen = {
+        bg: "green",
+        bold: true
+    }
+    const headerFormat = {
+        bold: true,
+        underlined: true,
+        centered: true
+    }
+    const titleRow = {
+        values: [getReqObj({
+            text: `Timesheet for the month of ${dayjs(monthYear).format('MMM YYYY')}`,
+            centered: true,
+            bold: true
+        })]
+    }
+    const nameAndId = {
+        values: [
+            getReqObj({
+                text: `Name: ${timesheetValues.empName}`,
+                ...boldAndGreen
+            }), {}, {},
+            getReqObj({
+                text: `Emp. ID: ${timesheetValues.empId}`,
+                ...boldAndGreen
+            })
+        ]
+    }
+    const managerAndWorking = {
+        values: [
+            getReqObj({
+                ...boldAndGreen,
+                text: `Project Manager: ${timesheetValues.projectManager}`
+            }), {}, {},
+            getReqObj({
+                ...boldAndGreen,
+                text: `Total no. of working days in the month: ${working}`
+            })
+        ]
+    }
+    const divisionAndBillable = {
+        values: [
+            getReqObj({
+                ...boldAndGreen,
+                text: `Division: ${timesheetValues.division}`
+            }), {}, {},
+            getReqObj({
+                ...boldAndGreen,
+                text: `Billable Days (Total days worked by emp): ${billable}`
+            })
+        ]
+    }
+    const projectAndParent = {
+        values: [
+            getReqObj({
+                ...boldAndGreen,
+                text: `Project Name: ${timesheetValues.projectName}`
+            }), {}, {},
+            getReqObj({
+                ...boldAndGreen,
+                text: `Parent Company: Indecomm Global Services`
+            })
+        ]
+    }
+    const leavesRow = {
+        values: [
+            getReqObj({
+                ...boldAndGreen,
+                text: `Total No of leaves taken: ${leaves}`
+            }), {}, {},
+            getReqObj({
+                ...boldAndGreen
+            })
+        ]
+    }
+    const headersRow = {
+        values: [
+            getReqObj({
+                ...headerFormat,
+                text: "Date"
+            }),
+            getReqObj({
+                ...headerFormat,
+                text: "Day"
+            }),
+            getReqObj({
+                ...headerFormat,
+                text: "Status"
+            }),
+            getReqObj({
+                ...headerFormat,
+                text: "Hours worked"
+            })
+        ]
+    }
+    function getStatus({ leaveType, isHoliday, date }) {
+        const isWeekend = date.get("day") === 0 || date.get("day") === 6;
+        if (isWeekend) return "Weekly Off";
+        if (isHoliday) return "Holiday";
+        if (leaveType === 'half') return "Half day leave";
+        if (leaveType === 'full') return "Full day leave";
+        return "Present";
+    }
+    function getHours({ leaveType, isHoliday, date }) {
+        const isWeekend = date.get("day") === 0 || date.get("day") === 6;
+        if (isWeekend || isHoliday) return "";
+        if (leaveType === 'half') return "4 Hours";
+        if (leaveType === 'full') return "0 Hours";
+        return "8 Hours"
+    }
+    function getBg({ isHoliday, date }) {
+        const isWeekend = date.get("day") === 0 || date.get("day") === 6;
+        if (isWeekend || isHoliday) return "gray";
+        return null;
+    }
+    const dateRows = calendarRows
+        .reduce((acc, row) => acc.concat(row.filter(Boolean)), [])
+        .map(obj => ({
+            values: [
+                getReqObj({
+                    text: obj.date.format("D-MMM-YYYY"),
+                }),
+                getReqObj({
+                    text: obj.date.format("dddd"),
+                }),
+                getReqObj({
+                    text: getStatus(obj),
+                    bg: getBg(obj)
+                }),
+                getReqObj({
+                    text: getHours(obj),
+                    bg: getBg(obj)
+                })
+            ]
+        }));
+    
+    return [
+        colWidthReq,
+        mergeCellsReqs,
+        {
+            updateCells: {
+                rows: [
+                    titleRow,
+                    nameAndId,
+                    managerAndWorking,
+                    divisionAndBillable,
+                    projectAndParent,
+                    leavesRow,
+                    headersRow,
+                    ...dateRows
+                ],
+                range: {
+                    sheetId,
+                    "startRowIndex": 0,
+                    "endRowIndex": 7 + daysLength,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 4
+                },
+                fields: "*"
+            }
+        }
+    ];
 }

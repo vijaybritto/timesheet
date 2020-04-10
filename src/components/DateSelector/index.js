@@ -1,12 +1,23 @@
-import { h, Fragment } from 'preact';
+import { h } from 'preact';
 import { useEffect, useReducer } from 'preact/hooks';
-import { getDaysInMonth, getCalendarRange } from '../../helper';
+import root from 'window-or-global';
+import { getDaysInMonth, getCalendarRange, getSummary, constructRequests } from '../../helper';
+import style from '../app.css';
+import Summary from '../summary';
+import Info from '../Info/info';
 
 const initialState = {
     markType: "leaves",
     dateRange: [],
-    calendarRows: []
+    calendarRows: [],
+    gSheetsUpload: {
+        loading: false,
+        success: false,
+        error: null
+    }
 }
+
+const primaryBtn = "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded";
 
 function reducer(state, action) {
     switch (action.type) {
@@ -41,14 +52,55 @@ function reducer(state, action) {
                     })
                 })
             }
+        case "GSHEETS_UPLOAD_LOADING":
+            return {
+                ...state,
+                gSheetsUpload: {
+                    loading: true,
+                    success: false,
+                    error: null
+                }
+            }
+        case "GSHEETS_UPLOAD_FAILURE":
+            return {
+                ...state,
+                gSheetsUpload: {
+                    loading: false,
+                    success: false,
+                    error: true
+                }
+            }
+        case "GSHEETS_UPLOAD_SUCCESS":
+            return {
+                ...state,
+                gSheetsUpload: {
+                    loading: false,
+                    error: null,
+                    success: true
+                }
+            }
         default:
             return state;
     }
 }
 
 export default function DateSelector(props) {
+    const { sheetId, spreadsheetId, monthYear, timesheetValues } = props;
     const [state, dispatch] = useReducer(reducer, initialState);
-    const { markType } = state;
+    const {
+        markType,
+        calendarRows,
+        gSheetsUpload: {
+            loading,
+            error,
+            success
+        }
+    } = state;
+    const {
+        working,
+        leaves,
+        billable
+    } = getSummary(calendarRows);
     const states = {
         leaves: [
             { type: "half", color: "bg-yellow-400", text: "Half day" },
@@ -73,13 +125,13 @@ export default function DateSelector(props) {
 
     useEffect(() => {
         //calc date range
-        const days = getDaysInMonth(props.monthYear)
+        const days = getDaysInMonth(monthYear)
         dispatch({
             type: "SET_DATES",
             data: days,
             calendarRows: getCalendarRange(days)
         })
-    }, [props.monthYear]);
+    }, [monthYear]);
 
     function getLegendSection() {
         return (
@@ -122,6 +174,36 @@ export default function DateSelector(props) {
                 obj
             })
         }
+    }
+
+    function uploadNow(e) {
+        // send final batchUpdate to google sheets
+        if (loading) return;
+        dispatch({
+            type: 'GSHEETS_UPLOAD_LOADING'
+        })
+        const requests = constructRequests(state, {
+            working,
+            leaves,
+            billable,
+            sheetId,
+            monthYear,
+            timesheetValues
+        });
+
+        const batchUpdateRequest = { requests };
+        root.gapi.client.sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            resource: batchUpdateRequest
+        }).then(() => {
+            dispatch({
+                type: 'GSHEETS_UPLOAD_SUCCESS'
+            })
+        }).catch(() => {
+            dispatch({
+                type: 'GSHEETS_UPLOAD_FAILURE'
+            })
+        });
     }
 
     function getCalendar() {
@@ -194,7 +276,7 @@ export default function DateSelector(props) {
     }
 
     return (
-        <div class="p-3 border mt-2 rounded">
+        <div class={`p-3 border mt-2 rounded ${style.animated} ${style['fade-in-left']}`}>
             <div class="p-1 border-b">
                 <span class="text-gray-700 text-sm">Mark days for:</span>
                 <div class="mt-2">
@@ -209,7 +291,7 @@ export default function DateSelector(props) {
                 </div>
             </div>
             <div class="p-1">
-                <div class="p-1 pt-2 text-sm">
+                <div class="p-1 pt-2 text-sm text-gray-700">
                     Click on weekdays to mark {markType}
                 </div>
                 <div class="p-1">
@@ -218,9 +300,27 @@ export default function DateSelector(props) {
                 <div class="p-1 mt-1 border-b flex justify-center">
                     {getCalendar()}
                 </div>
-                <div class="p-1 mt-1">
-                    Summary
+                <Summary working={working} leaves={leaves} billable={billable} />
+                <hr class="mt-1 mb-4" />
+                <div class="text-center">
+                    <button class={`${primaryBtn} ${loading ? "cursor-not-allowed opacity-25" : ""}`} onClick={uploadNow}>
+                        {loading ? "Uploading..." : "Upload to Gsheets!"}
+                    </button>
                 </div>
+                {success && <Info
+                    message="Successfully uploaded. Check your Google drive!!"
+                    type="success"
+                    autoHide
+                    classOverride="mt-2"
+                    timeout="5000"
+                />}
+                {error && <Info
+                    message="Failed to upload. Please try again."
+                    type="error"
+                    autoHide
+                    classOverride="mt-2"
+                    timeout="5000"
+                />}
             </div>
         </div>
     );

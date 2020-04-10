@@ -14,7 +14,8 @@ import {
     createSpreadsheet,
     getFileFromDrive,
     getFileName,
-    useLocalStorage
+    useLocalStorage,
+    getSpreadsheetInfo
 } from '../helper';
 import {
     initialState,
@@ -171,8 +172,9 @@ export default function App() {
             if (error) {
                 dispatch({ type: SHEET_ERROR });
             } else if (id) {
+                const { sheetId, title } = await getSpreadsheetInfo(id);
                 // file already exists, so set in state
-                dispatch({ type: SHEET_SUCCESS, id, name })
+                dispatch({ type: SHEET_SUCCESS, id, name, sheetId, title })
             } else {
                 // create file in gdrive
                 const {
@@ -237,7 +239,7 @@ export default function App() {
         } = state;
         return (
             <details ref={detailsRef} class="mt-1">
-                <summary>Project Details</summary>
+                <summary class="text-lg">Project Details</summary>
                 <TextField placeholder="Employee Name" name="empName" value={empName} onInput={onFieldInput} />
                 <TextField placeholder="Employee Id" name="empId" value={empId} onInput={onFieldInput} />
                 <TextField placeholder="Project Name" name="projectName" value={projectName} onInput={onFieldInput} />
@@ -371,8 +373,13 @@ export default function App() {
                                                 state.sheet.loading
                                                 || state.sheet.error
                                                 || state.userData.error
-                                                ) &&
-                                            <DateSelector monthYear={state.monthYear} />
+                                            ) &&
+                                            <DateSelector
+                                                monthYear={state.monthYear}
+                                                spreadsheetId={state.sheet.id}
+                                                sheetId={state.sheet.sheetId}
+                                                timesheetValues={state.timesheetValues}
+                                            />
                                         }
                                     </Fragment>
 
